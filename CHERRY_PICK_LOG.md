@@ -22,19 +22,19 @@
 | `e76b29b7` | fix(ios): replace deprecation warnings | ✅ 已合并 |
 | `62bd16f6` | fix(cli): prefer studio executable over studio.sh on linux | ✅ 已合并 |
 
----
-
-## 待合并的提交 (可选)
-
-### 安全的功能/文档更新
+### 功能/文档更新 (2024-12-10 第二批)
 
 | 提交哈希 | 描述 | 状态 |
 |----------|------|------|
-| `b30c4724` | feat(cli): Select a cap run target by target name | ⏳ 待定 |
-| `e8507cfe` | feat(iOS): Allow plugins to hook into WebView URL auth challenges | ⏳ 待定 |
-| `ba05dd3d` | feat(android-template): Update google-services version | ⏳ 待定 |
-| `5b27fdf4` | docs(core): fix typo in HttpResponse url description | ⏳ 待定 |
-| `81f4416c` | chore: unify discord links | ⏳ 待定 |
+| `b30c4724` | feat(cli): Select a cap run target by target name | ✅ 已合并 |
+| `e8507cfe` | feat(iOS): Allow plugins to hook into WebView URL auth challenges | ✅ 已合并 |
+| `ba05dd3d` | feat(android-template): Update google-services to 4.4.4 | ✅ 已合并 |
+| `5b27fdf4` | docs(core): fix typo in HttpResponse url description | ✅ 已合并 |
+| `81f4416c` | chore: unify discord links | ✅ 已合并 |
+
+---
+
+## 待评估的提交
 
 ### 需要评估
 
