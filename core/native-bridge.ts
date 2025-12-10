@@ -1023,6 +1023,194 @@ const initBridge = (w: any): void => {
     // 立即尝试加载配置
     loadSyncConfig();
     
+    // ==================== 结果缓存支持 ====================
+    
+    /**
+     * 缓存配置接口
+     */
+    interface CacheConfig {
+      enabled: boolean;
+      // 启用缓存的插件方法及其 TTL（毫秒）
+      methods: Record<string, Record<string, number>>;
+      // 默认 TTL（毫秒）
+      defaultTTL: number;
+      // 最大缓存条目数
+      maxEntries: number;
+    }
+    
+    interface CacheEntry {
+      data: any;
+      expires: number;
+      optionsHash: string;
+    }
+    
+    const defaultCacheConfig: CacheConfig = {
+      enabled: true,
+      methods: {
+        // 设备信息 - 几乎不变，缓存 5 分钟
+        'Device': {
+          'getInfo': 300000,
+          'getId': 300000,
+          'getBatteryInfo': 30000,  // 电池信息 30 秒
+          'getLanguageCode': 300000,
+          'getLanguageTag': 300000,
+        },
+        // 应用信息 - 不变，缓存 5 分钟
+        'App': {
+          'getInfo': 300000,
+          'getState': 5000,  // 应用状态 5 秒
+          'getLaunchUrl': 300000,
+        },
+        // 偏好设置 - 缓存 10 秒（可能被修改）
+        'Preferences': {
+          'get': 10000,
+          'keys': 10000,
+        },
+        // 状态栏 - 缓存 5 秒
+        'StatusBar': {
+          'getInfo': 5000,
+        },
+        // 网络状态 - 缓存 5 秒
+        'Network': {
+          'getStatus': 5000,
+        },
+        // 屏幕信息 - 缓存 30 秒
+        'Screen': {
+          'getInfo': 30000,
+        },
+      },
+      defaultTTL: 10000,
+      maxEntries: 100,
+    };
+    
+    let cacheConfig: CacheConfig = defaultCacheConfig;
+    const resultCache = new Map<string, CacheEntry>();
+    
+    /**
+     * 加载缓存配置
+     */
+    const loadCacheConfig = () => {
+      const capConfig = (win as any).Capacitor?.config?.plugins?.ResultCache;
+      if (capConfig) {
+        cacheConfig = {
+          enabled: capConfig.enabled !== false,
+          methods: capConfig.methods || defaultCacheConfig.methods,
+          defaultTTL: capConfig.defaultTTL || defaultCacheConfig.defaultTTL,
+          maxEntries: capConfig.maxEntries || defaultCacheConfig.maxEntries,
+        };
+        win?.console?.log?.('⚡ [ResultCache] 配置已加载');
+      }
+    };
+    
+    loadCacheConfig();
+    
+    /**
+     * 生成缓存键
+     */
+    const getCacheKey = (pluginId: string, methodName: string, options: any): string => {
+      const optionsStr = JSON.stringify(options || {});
+      return `${pluginId}.${methodName}:${optionsStr}`;
+    };
+    
+    /**
+     * 检查是否应该使用缓存
+     */
+    const shouldUseCache = (pluginId: string, methodName: string): number | null => {
+      if (!cacheConfig.enabled) return null;
+      
+      const pluginMethods = cacheConfig.methods[pluginId];
+      if (pluginMethods && typeof pluginMethods[methodName] === 'number') {
+        return pluginMethods[methodName];
+      }
+      
+      return null;
+    };
+    
+    /**
+     * 从缓存获取结果
+     */
+    const getFromCache = (cacheKey: string): any | null => {
+      const entry = resultCache.get(cacheKey);
+      if (entry && Date.now() < entry.expires) {
+        return entry.data;
+      }
+      // 过期则删除
+      if (entry) {
+        resultCache.delete(cacheKey);
+      }
+      return null;
+    };
+    
+    /**
+     * 存入缓存
+     */
+    const setCache = (cacheKey: string, data: any, ttl: number): void => {
+      // 清理过期条目
+      if (resultCache.size >= cacheConfig.maxEntries) {
+        const now = Date.now();
+        for (const [key, entry] of resultCache.entries()) {
+          if (now >= entry.expires) {
+            resultCache.delete(key);
+          }
+        }
+        // 如果还是超过限制，删除最旧的
+        if (resultCache.size >= cacheConfig.maxEntries) {
+          const firstKey = resultCache.keys().next().value;
+          if (firstKey) resultCache.delete(firstKey);
+        }
+      }
+      
+      resultCache.set(cacheKey, {
+        data,
+        expires: Date.now() + ttl,
+        optionsHash: cacheKey,
+      });
+    };
+    
+    /**
+     * 清除指定插件的缓存（写操作后调用）
+     */
+    const invalidateCache = (pluginId: string, methodName?: string): void => {
+      const prefix = methodName ? `${pluginId}.${methodName}:` : `${pluginId}.`;
+      for (const key of resultCache.keys()) {
+        if (key.startsWith(prefix)) {
+          resultCache.delete(key);
+        }
+      }
+    };
+    
+    // 暴露缓存 API
+    (cap as any).invalidateCache = invalidateCache;
+    (cap as any).clearCache = () => resultCache.clear();
+    (cap as any).getCacheStats = () => ({
+      size: resultCache.size,
+      maxEntries: cacheConfig.maxEntries,
+      entries: Array.from(resultCache.keys()),
+    });
+    
+    /**
+     * 写操作方法列表 - 调用这些方法时自动清除对应插件的缓存
+     */
+    const writeMethods: Record<string, string[]> = {
+      'Preferences': ['set', 'remove', 'clear'],
+      'Storage': ['set', 'setItem', 'remove', 'removeItem', 'clear'],
+      'StatusBar': ['setStyle', 'setBackgroundColor', 'show', 'hide', 'setOverlaysWebView'],
+      'App': ['exitApp', 'minimizeApp'],
+    };
+    
+    /**
+     * 检查是否是写操作，如果是则清除缓存
+     */
+    const checkAndInvalidateCache = (pluginId: string, methodName: string): void => {
+      const methods = writeMethods[pluginId];
+      if (methods && methods.includes(methodName)) {
+        invalidateCache(pluginId);
+        win?.console?.debug?.(`💾 [Cache] Invalidated: ${pluginId}.*`);
+      }
+    };
+    
+    // ==================== 结果缓存支持结束 ====================
+    
     /**
      * 判断是否应该使用同步调用
      */
@@ -1174,7 +1362,31 @@ const initBridge = (w: any): void => {
      */
     cap.toNative = (pluginName, methodName, options, storedCallback) => {
       try {
-        // 检查是否应该使用同步调用
+        // ========== 0. 检查写操作并清除缓存 ==========
+        checkAndInvalidateCache(pluginName, methodName);
+        
+        // ========== 1. 检查缓存 ==========
+        const cacheTTL = shouldUseCache(pluginName, methodName);
+        if (cacheTTL !== null && storedCallback?.resolve) {
+          const cacheKey = getCacheKey(pluginName, methodName, options);
+          const cachedResult = getFromCache(cacheKey);
+          
+          if (cachedResult !== null) {
+            // 缓存命中，立即返回
+            storedCallback.resolve(cachedResult);
+            win?.console?.debug?.(`💾 [Cache] ${pluginName}.${methodName} - 0ms (cached)`);
+            return '-1';
+          }
+          
+          // 缓存未命中，包装回调以存储结果
+          const originalResolve = storedCallback.resolve;
+          storedCallback.resolve = (result: any) => {
+            setCache(cacheKey, result, cacheTTL);
+            originalResolve(result);
+          };
+        }
+        
+        // ========== 2. 检查同步调用 ==========
         const bridgeAvailable = isSyncBridgeAvailable();
         const shouldSync = shouldUseSync(pluginName, methodName);
         const hasResolve = !!storedCallback?.resolve;
