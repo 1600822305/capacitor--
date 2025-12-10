@@ -25,18 +25,18 @@ export async function doctorCommand(config: Config, selectedPlatformName: string
 
 export async function doctorCore(config: Config): Promise<void> {
   const [cliVersion, coreVersion, androidVersion, iosVersion] = await Promise.all([
-    getCommandOutput('npm', ['info', '@capacitor/cli', 'version']),
-    getCommandOutput('npm', ['info', '@capacitor/core', 'version']),
-    getCommandOutput('npm', ['info', '@capacitor/android', 'version']),
-    getCommandOutput('npm', ['info', '@capacitor/ios', 'version']),
+    getCommandOutput('npm', ['info', 'aetherlink-capacitor-cli', 'version']),
+    getCommandOutput('npm', ['info', 'aetherlink-capacitor-core', 'version']),
+    getCommandOutput('npm', ['info', 'aetherlink-capacitor-android', 'version']),
+    getCommandOutput('npm', ['info', 'aetherlink-capacitor-ios', 'version']),
   ]);
 
   output.write(
     `${c.strong('Latest Dependencies:')}\n\n` +
-      `  @capacitor/cli: ${c.weak(cliVersion ?? 'unknown')}\n` +
-      `  @capacitor/core: ${c.weak(coreVersion ?? 'unknown')}\n` +
-      `  @capacitor/android: ${c.weak(androidVersion ?? 'unknown')}\n` +
-      `  @capacitor/ios: ${c.weak(iosVersion ?? 'unknown')}\n\n` +
+      `  aetherlink-capacitor-cli: ${c.weak(cliVersion ?? 'unknown')}\n` +
+      `  aetherlink-capacitor-core: ${c.weak(coreVersion ?? 'unknown')}\n` +
+      `  aetherlink-capacitor-android: ${c.weak(androidVersion ?? 'unknown')}\n` +
+      `  aetherlink-capacitor-ios: ${c.weak(iosVersion ?? 'unknown')}\n\n` +
       `${c.strong('Installed Dependencies:')}\n\n`,
   );
 
@@ -46,7 +46,7 @@ export async function doctorCore(config: Config): Promise<void> {
 }
 
 async function printInstalledPackages(config: Config) {
-  const packageNames = ['@capacitor/cli', '@capacitor/core', '@capacitor/android', '@capacitor/ios'];
+  const packageNames = ['aetherlink-capacitor-cli', 'aetherlink-capacitor-core', 'aetherlink-capacitor-android', 'aetherlink-capacitor-ios'];
   await Promise.all(
     packageNames.map(async (packageName) => {
       const packagePath = resolveNode(config.app.rootDir, packageName, 'package.json');

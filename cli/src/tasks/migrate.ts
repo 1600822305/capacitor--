@@ -19,7 +19,7 @@ import { extractTemplate } from '../util/template';
 
 // eslint-disable-next-line prefer-const
 let allDependencies: { [key: string]: any } = {};
-const libs = ['@capacitor/core', '@capacitor/cli', '@capacitor/ios', '@capacitor/android'];
+const libs = ['aetherlink-capacitor-core', 'aetherlink-capacitor-cli', 'aetherlink-capacitor-ios', 'aetherlink-capacitor-android'];
 const plugins = [
   '@capacitor/action-sheet',
   '@capacitor/app',
@@ -148,7 +148,7 @@ export async function migrateCommand(config: Config, noprompt: boolean, packagem
       }
 
       // Update iOS Projects
-      if (allDependencies['@capacitor/ios'] && existsSync(config.ios.platformDirAbs)) {
+      if (allDependencies['aetherlink-capacitor-ios'] && existsSync(config.ios.platformDirAbs)) {
         const currentiOSVersion = getMajoriOSVersion(config);
         if (parseInt(currentiOSVersion) < parseInt(iOSVersion)) {
           // ios template changes
@@ -187,7 +187,7 @@ export async function migrateCommand(config: Config, noprompt: boolean, packagem
         logger.warn('Skipped Running cap sync.');
       }
 
-      if (allDependencies['@capacitor/android'] && existsSync(config.android.platformDirAbs)) {
+      if (allDependencies['aetherlink-capacitor-android'] && existsSync(config.android.platformDirAbs)) {
         // AndroidManifest.xml add navigation"
         await runTask(`Migrating AndroidManifest.xml by adding navigation to Activity configChanges.`, () => {
           return updateAndroidManifest(join(config.android.srcMainDirAbs, 'AndroidManifest.xml'));
@@ -359,7 +359,7 @@ async function installLatestLibs(dependencyManager: string, runInstall: boolean,
   });
 
   if (runInstall) {
-    rimraf.sync(join(config.app.rootDir, 'node_modules/@capacitor/!(cli)'));
+    rimraf.sync(join(config.app.rootDir, 'node_modules/aetherlink-capacitor-!(cli)'));
     await runCommand(dependencyManager, ['install']);
     if (dependencyManager == 'yarn') {
       await runCommand(dependencyManager, ['upgrade']);

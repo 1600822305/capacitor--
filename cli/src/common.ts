@@ -443,17 +443,17 @@ export async function checkPlatformVersions(config: Config, platform: string): P
 
   if (semver.diff(coreVersion, platformVersion) === 'minor' || semver.diff(coreVersion, platformVersion) === 'major') {
     logger.warn(
-      `${c.strong('@capacitor/core')}${c.weak(
+      `${c.strong('aetherlink-capacitor-core')}${c.weak(
         `@${coreVersion}`,
-      )} version doesn't match ${c.strong(`@capacitor/${platform}`)}${c.weak(`@${platformVersion}`)} version.\n` +
-        `Consider updating to a matching version, e.g. w/ ${c.input(`npm install @capacitor/core@${platformVersion}`)}`,
+      )} version doesn't match ${c.strong(`aetherlink-capacitor-${platform}`)}${c.weak(`@${platformVersion}`)} version.\n` +
+        `Consider updating to a matching version, e.g. w/ ${c.input(`npm install aetherlink-capacitor-core@${platformVersion}`)}`,
     );
   }
 }
 
 export function resolvePlatform(config: Config, platform: string): string | null {
   if (platform[0] !== '@') {
-    const core = resolveNode(config.app.rootDir, `@capacitor/${platform}`, 'package.json');
+    const core = resolveNode(config.app.rootDir, `aetherlink-capacitor-${platform}`, 'package.json');
 
     if (core) {
       return dirname(core);
