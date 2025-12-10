@@ -1,5 +1,5 @@
 {
-  "name": "@capacitor/core",
+  "name": "aetherlink-capacitor-core",
   "version": "7.4.4",
   "description": "Capacitor: Cross-platform apps with JavaScript and the web",
   "homepage": "https://capacitorjs.com",
@@ -7,10 +7,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ionic-team/capacitor.git"
+    "url": "git+https://github.com/1600822305/capacitor--.git"
   },
   "bugs": {
-    "url": "https://github.com/ionic-team/capacitor/issues"
+    "url": "https://github.com/1600822305/capacitor--/issues"
   },
   "files": [
     "dist/",

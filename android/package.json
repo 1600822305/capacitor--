@@ -1,5 +1,5 @@
 {
-  "name": "@capacitor/android",
+  "name": "aetherlink-capacitor-android",
   "version": "7.4.4",
   "description": "Capacitor: Cross-platform apps with JavaScript and the web",
   "homepage": "https://capacitorjs.com",
@@ -7,10 +7,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ionic-team/capacitor.git"
+    "url": "git+https://github.com/1600822305/capacitor--.git"
   },
   "bugs": {
-    "url": "https://github.com/ionic-team/capacitor/issues"
+    "url": "https://github.com/1600822305/capacitor--/issues"
   },
   "files": [
     "capacitor/build.gradle",
@@ -23,7 +23,7 @@
     "verify": "./gradlew clean lint build test -b capacitor/build.gradle"
   },
   "peerDependencies": {
-    "@capacitor/core": "^7.4.0"
+    "aetherlink-capacitor-core": "^7.4.0"
   },
   "publishConfig": {
     "access": "public"
