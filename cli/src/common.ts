@@ -76,7 +76,7 @@ export async function checkCapacitorPlatform(config: Config, platform: string): 
   if (!pkg) {
     return (
       `Could not find the ${c.input(platform)} platform.\n` +
-      `You must install it in your project first, e.g. w/ ${c.input(`npm install @capacitor/${platform}`)}`
+      `You must install it in your project first, e.g. w/ ${c.input(`npm install aetherlink-capacitor-${platform}`)} or ${c.input(`npm install @capacitor/${platform}`)}`
     );
   }
 
@@ -224,7 +224,13 @@ export async function runTask<T>(title: string, fn: () => Promise<T>): Promise<T
 }
 
 export async function getCapacitorPackage(config: Config, name: string): Promise<PackageJson | null> {
-  const packagePath = resolveNode(config.app.rootDir, `@capacitor/${name}`, 'package.json');
+  // 首先尝试 aetherlink-capacitor-* 包名（自定义版本）
+  let packagePath = resolveNode(config.app.rootDir, `aetherlink-capacitor-${name}`, 'package.json');
+  
+  // 如果找不到，尝试官方 @capacitor/* 包名
+  if (!packagePath) {
+    packagePath = resolveNode(config.app.rootDir, `@capacitor/${name}`, 'package.json');
+  }
 
   if (!packagePath) {
     return null;
@@ -238,8 +244,8 @@ export async function requireCapacitorPackage(config: Config, name: string): Pro
 
   if (!pkg) {
     fatal(
-      `Unable to find node_modules/@capacitor/${name}.\n` +
-        `Are you sure ${c.strong(`@capacitor/${name}`)} is installed?`,
+      `Unable to find node_modules/aetherlink-capacitor-${name} or node_modules/@capacitor/${name}.\n` +
+        `Are you sure ${c.strong(`aetherlink-capacitor-${name}`)} or ${c.strong(`@capacitor/${name}`)} is installed?`,
     );
   }
   return pkg;
