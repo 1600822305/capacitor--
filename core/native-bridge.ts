@@ -1045,40 +1045,8 @@ const initBridge = (w: any): void => {
     }
     
     const defaultCacheConfig: CacheConfig = {
-      enabled: true,
-      methods: {
-        // 设备信息 - 几乎不变，缓存 5 分钟
-        'Device': {
-          'getInfo': 300000,
-          'getId': 300000,
-          'getBatteryInfo': 30000,  // 电池信息 30 秒
-          'getLanguageCode': 300000,
-          'getLanguageTag': 300000,
-        },
-        // 应用信息 - 不变，缓存 5 分钟
-        'App': {
-          'getInfo': 300000,
-          'getState': 5000,  // 应用状态 5 秒
-          'getLaunchUrl': 300000,
-        },
-        // 偏好设置 - 缓存 10 秒（可能被修改）
-        'Preferences': {
-          'get': 10000,
-          'keys': 10000,
-        },
-        // 状态栏 - 缓存 5 秒
-        'StatusBar': {
-          'getInfo': 5000,
-        },
-        // 网络状态 - 缓存 5 秒
-        'Network': {
-          'getStatus': 5000,
-        },
-        // 屏幕信息 - 缓存 30 秒
-        'Screen': {
-          'getInfo': 30000,
-        },
-      },
+      enabled: false,  // 默认关闭，需要在 capacitor.config.ts 中配置启用
+      methods: {},     // 空的，需要用户配置
       defaultTTL: 10000,
       maxEntries: 100,
     };
@@ -1205,7 +1173,7 @@ const initBridge = (w: any): void => {
       const methods = writeMethods[pluginId];
       if (methods && methods.includes(methodName)) {
         invalidateCache(pluginId);
-        win?.console?.debug?.(`💾 [Cache] Invalidated: ${pluginId}.*`);
+        win?.console?.log?.(`💾 [Cache] Invalidated: ${pluginId}.*`);
       }
     };
     
@@ -1374,14 +1342,16 @@ const initBridge = (w: any): void => {
           if (cachedResult !== null) {
             // 缓存命中，立即返回
             storedCallback.resolve(cachedResult);
-            win?.console?.debug?.(`💾 [Cache] ${pluginName}.${methodName} - 0ms (cached)`);
+            win?.console?.log?.(`💾 [Cache] ${pluginName}.${methodName} - 0ms (cached)`);
             return '-1';
           }
           
           // 缓存未命中，包装回调以存储结果
+          win?.console?.log?.(`💾 [Cache] ${pluginName}.${methodName} - MISS, will cache for ${cacheTTL}ms`);
           const originalResolve = storedCallback.resolve;
           storedCallback.resolve = (result: any) => {
             setCache(cacheKey, result, cacheTTL);
+            win?.console?.log?.(`💾 [Cache] ${pluginName}.${methodName} - stored`);
             originalResolve(result);
           };
         }
