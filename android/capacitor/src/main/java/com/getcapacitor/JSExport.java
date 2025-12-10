@@ -20,6 +20,25 @@ public class JSExport {
     public static String getGlobalJS(Context context, boolean loggingEnabled, boolean isDebug) {
         return "window.Capacitor = { DEBUG: " + isDebug + ", isLoggingEnabled: " + loggingEnabled + ", Plugins: {} };";
     }
+    
+    public static String getGlobalJS(Context context, boolean loggingEnabled, boolean isDebug, CapConfig config) {
+        // 注入配置到 window.Capacitor.config
+        String configJson = "{}";
+        try {
+            JSONObject configObj = config.getConfigJSON();
+            if (configObj != null) {
+                configJson = configObj.toString();
+            }
+        } catch (Exception e) {
+            Logger.warn("Unable to get config JSON for injection");
+        }
+        
+        return "window.Capacitor = { DEBUG: " + isDebug + 
+               ", isLoggingEnabled: " + loggingEnabled + 
+               ", Plugins: {}" +
+               ", config: " + configJson + 
+               " };";
+    }
 
     public static String getMiscFileJS(ArrayList<String> paths, Context context) {
         List<String> lines = new ArrayList<>();

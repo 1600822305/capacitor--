@@ -444,6 +444,16 @@ public class CapConfig {
      * @param key A key to fetch from the config
      * @return The value from the config, if exists. Null if not
      */
+    /**
+     * Get the full config JSON object.
+     * Used for injecting config into JavaScript.
+     *
+     * @return The full config JSON object
+     */
+    public JSONObject getConfigJSON() {
+        return configJSON;
+    }
+    
     @Deprecated
     public JSONObject getObject(String key) {
         try {

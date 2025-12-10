@@ -1019,7 +1019,8 @@ public class Bridge {
      */
     private JSInjector getJSInjector() {
         try {
-            String globalJS = JSExport.getGlobalJS(context, config.isLoggingEnabled(), isDevMode());
+            // 使用带配置参数的方法，将配置注入到 window.Capacitor.config
+            String globalJS = JSExport.getGlobalJS(context, config.isLoggingEnabled(), isDevMode(), config);
             String bridgeJS = JSExport.getBridgeJS(context);
             String pluginJS = JSExport.getPluginJS(plugins.values());
             String cordovaJS = JSExport.getCordovaJS(context);

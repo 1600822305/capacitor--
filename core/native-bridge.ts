@@ -176,7 +176,7 @@ const initBridge = (w: any): void => {
       return {
         remove: async () => {
           win?.console?.debug('Removing listener', pluginName, eventName);
-          cap.removeListener(pluginName, callbackId, eventName, callback);
+          cap.removeListener?.(pluginName, callbackId, eventName, callback);
         },
       };
     };
@@ -215,7 +215,7 @@ const initBridge = (w: any): void => {
       const doc = win.document;
       const cordova = win.cordova;
       eventData = eventData || {};
-      const ev = cap.createEvent(eventName, eventData);
+      const ev = cap.createEvent?.(eventName, eventData);
 
       if (ev) {
         if (target === 'document') {
@@ -251,7 +251,7 @@ const initBridge = (w: any): void => {
       nav.app = nav.app || {};
       nav.app.exitApp = () => {
         if (!cap.Plugins?.App) {
-          win.console.warn('App plugin not installed');
+          win.console?.warn('App plugin not installed');
         } else {
           cap.nativeCallback('App', 'exitApp', {});
         }
@@ -269,7 +269,7 @@ const initBridge = (w: any): void => {
           // Add a dummy listener so Capacitor doesn't do the default
           // back button action
           if (!cap.Plugins?.App) {
-            win.console.warn('App plugin not installed');
+            win.console?.warn('App plugin not installed');
           } else {
             cap.Plugins.App.addListener('backButton', () => {
               // ignore
@@ -335,9 +335,9 @@ const initBridge = (w: any): void => {
         c.groupEnd();
       } else {
         if (result.success === false) {
-          c.error('LOG FROM NATIVE', result.error);
+          c.error?.('LOG FROM NATIVE', result.error);
         } else {
-          c.log('LOG FROM NATIVE', result.data);
+          c.log?.('LOG FROM NATIVE', result.data);
         }
       }
     };
@@ -352,7 +352,7 @@ const initBridge = (w: any): void => {
         c.dir(call);
         c.groupEnd();
       } else {
-        c.log('LOG TO NATIVE: ', call);
+        c.log?.('LOG TO NATIVE: ', call);
       }
     };
 
@@ -807,11 +807,11 @@ const initBridge = (w: any): void => {
                     console.timeEnd(tag);
                   });
               });
-            } catch (error) {
+            } catch (error: unknown) {
               this.status = 500;
               this._headers = {};
               this.response = error;
-              this.responseText = error.toString();
+              this.responseText = String(error);
               this.responseURL = this._url;
               this.readyState = 4;
               if (isProgressEventAvailable()) {
@@ -868,11 +868,11 @@ const initBridge = (w: any): void => {
       Object.defineProperties(
         win.console,
         BRIDGED_CONSOLE_METHODS.reduce((props: any, method) => {
-          const consoleMethod = win.console[method].bind(win.console);
+          const consoleMethod = (win.console as any)[method].bind(win.console);
           props[method] = {
             value: (...args: any[]) => {
               const msgs = [...args];
-              cap.toNative('Console', 'log', {
+              cap.toNative?.('Console', 'log', {
                 level: method,
                 message: msgs.map(serializeConsoleMessage).join(' '),
               });
@@ -887,23 +887,23 @@ const initBridge = (w: any): void => {
     cap.logJs = (msg, level) => {
       switch (level) {
         case 'error':
-          win.console.error(msg);
+          win.console?.error(msg);
           break;
         case 'warn':
-          win.console.warn(msg);
+          win.console?.warn(msg);
           break;
         case 'info':
-          win.console.info(msg);
+          win.console?.info(msg);
           break;
         default:
-          win.console.log(msg);
+          win.console?.log(msg);
       }
     };
 
-    cap.logToNative = createLogToNative(win.console);
-    cap.logFromNative = createLogFromNative(win.console);
+    cap.logToNative = createLogToNative(win.console || {});
+    cap.logFromNative = createLogFromNative(win.console || {});
 
-    cap.handleError = (err) => win.console.error(err);
+    cap.handleError = (err) => win.console?.error(err);
 
     win.Capacitor = cap;
   };
@@ -923,10 +923,192 @@ const initBridge = (w: any): void => {
     // an existing callback id from an old session
     let callbackIdCount = Math.floor(Math.random() * 134217728);
 
-    let postToNative: (data: CallData) => void | null = null;
+    let postToNative: ((data: CallData) => void) | null = null;
 
     const isNativePlatform = () => true;
     const getPlatform = () => getPlatformId(win);
+
+    // ==================== 同步调用支持 ====================
+    
+    /**
+     * 同步调用配置
+     */
+    interface SyncConfig {
+      enabled: boolean;
+      // 适合同步调用的插件（轻量级、快速返回）
+      syncPlugins: string[];
+      // 适合同步调用的方法
+      syncMethods: Record<string, string[]>;
+      // 超时时间（毫秒）
+      timeout: number;
+    }
+    
+    const defaultSyncConfig: SyncConfig = {
+      enabled: true,
+      syncPlugins: [
+        'Storage',      // 本地存储操作
+        'Preferences',  // 偏好设置
+        'Device',       // 设备信息
+        'App',          // 应用信息
+      ],
+      syncMethods: {
+        'Storage': ['get', 'keys', 'getItem'],
+        'Preferences': ['get', 'keys'],
+        'Device': ['getInfo', 'getId', 'getBatteryInfo'],
+        'App': ['getInfo', 'getState'],
+      },
+      timeout: 5000,
+    };
+    
+    // 从 capacitor.config.json 读取配置
+    let syncConfig: SyncConfig = defaultSyncConfig;
+    
+    const loadSyncConfig = () => {
+      // 使用 console.log 确保日志能输出
+      const log = (msg: string, ...args: any[]) => {
+        try {
+          win?.console?.log?.('⚡ [SyncBridge] ' + msg, ...args);
+        } catch (e) {}
+      };
+      
+      log('开始加载配置...', 'androidBridge.callSync:', typeof (win as any).androidBridge?.callSync);
+      
+      // 优先从 window.__CAPACITOR_SYNC_CONFIG__ 读取（用于测试/覆盖）
+      if ((win as any).__CAPACITOR_SYNC_CONFIG__) {
+        syncConfig = (win as any).__CAPACITOR_SYNC_CONFIG__;
+        log('配置已加载 (from __CAPACITOR_SYNC_CONFIG__)');
+        return;
+      }
+      
+      // 尝试从 Capacitor 注入的配置读取
+      const capConfig = (win as any).Capacitor?.config?.plugins?.SyncBridge;
+      if (capConfig) {
+        syncConfig = {
+          enabled: capConfig.enabled !== false,
+          syncPlugins: capConfig.enabledPlugins || defaultSyncConfig.syncPlugins,
+          syncMethods: capConfig.enabledMethods || defaultSyncConfig.syncMethods,
+          timeout: capConfig.timeout || defaultSyncConfig.timeout,
+        };
+        log('配置已加载 (from Capacitor.config)', 'syncPlugins:', syncConfig.syncPlugins);
+        return;
+      }
+      
+      // 从 capacitor.config.json 文件读取
+      try {
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', 'capacitor.config.json', false); // 同步请求，相对路径
+        xhr.send();
+        log('XHR status:', xhr.status);
+        if (xhr.status === 200) {
+          const config = JSON.parse(xhr.responseText);
+          const pluginConfig = config?.plugins?.SyncBridge;
+          if (pluginConfig) {
+            syncConfig = {
+              enabled: pluginConfig.enabled !== false,
+              syncPlugins: pluginConfig.enabledPlugins || defaultSyncConfig.syncPlugins,
+              syncMethods: pluginConfig.enabledMethods || defaultSyncConfig.syncMethods,
+              timeout: pluginConfig.timeout || defaultSyncConfig.timeout,
+            };
+            log('配置已加载! 启用插件:', syncConfig.syncPlugins);
+            return;
+          }
+        }
+      } catch (e: any) {
+        log('XHR 加载失败:', e?.message || e);
+      }
+      
+      log('使用默认配置');
+    };
+    
+    // 立即尝试加载配置
+    loadSyncConfig();
+    
+    /**
+     * 判断是否应该使用同步调用
+     */
+    const shouldUseSync = (pluginId: string, methodName: string): boolean => {
+      if (!syncConfig.enabled) return false;
+      
+      // 检查是否在同步插件列表中
+      if (syncConfig.syncPlugins.includes(pluginId)) {
+        // 如果指定了具体方法，检查方法是否在列表中
+        const methods = syncConfig.syncMethods[pluginId];
+        if (methods && methods.length > 0) {
+          return methods.includes(methodName);
+        }
+        return true; // 整个插件都启用同步
+      }
+      
+      return false;
+    };
+    
+    /**
+     * 检查同步桥接是否可用
+     */
+    const isSyncBridgeAvailable = (): boolean => {
+      if (getPlatformId(win) === 'android') {
+        return typeof (win as any).androidBridge?.callSync === 'function';
+      } else if (getPlatformId(win) === 'ios') {
+        // iOS 使用 prompt 机制
+        return true;
+      }
+      return false;
+    };
+    
+    /**
+     * 同步调用实现
+     */
+    const callSync = (pluginId: string, methodName: string, options: any): any => {
+      const platform = getPlatformId(win);
+      
+      if (platform === 'android') {
+        try {
+          const optionsJson = JSON.stringify(options || {});
+          const resultJson = (win as any).androidBridge.callSync(
+            pluginId, 
+            methodName, 
+            optionsJson
+          );
+          const result = JSON.parse(resultJson);
+          
+          if (result.success) {
+            return result.data;
+          } else {
+            throw new cap.Exception(result.error?.message || 'Sync call failed');
+          }
+        } catch (e) {
+          win?.console?.error('Sync call error:', e);
+          throw e;
+        }
+      } else if (platform === 'ios') {
+        // iOS 使用 prompt 同步机制
+        const payload = {
+          type: 'CapacitorSyncCall',
+          pluginId,
+          methodName,
+          options: options || {},
+        };
+        
+        const resultJson = (win as any).prompt(JSON.stringify(payload));
+        if (resultJson) {
+          const result = JSON.parse(resultJson);
+          if (result.success) {
+            return result.data;
+          } else {
+            throw new cap.Exception(result.error?.message || 'Sync call failed');
+          }
+        }
+        throw new cap.Exception('No response from native');
+      }
+      
+      throw new cap.Exception('Sync bridge not available');
+    };
+    
+    // 暴露同步调用 API
+    (cap as any).callSync = callSync;
+    (cap as any).isSyncAvailable = isSyncBridgeAvailable;
+    
+    // ==================== 同步调用支持结束 ====================
 
     cap.getPlatform = getPlatform;
     cap.isPluginAvailable = (name) => Object.prototype.hasOwnProperty.call(cap.Plugins, name);
@@ -937,7 +1119,7 @@ const initBridge = (w: any): void => {
       // android platform
       postToNative = (data) => {
         try {
-          win.androidBridge.postMessage(JSON.stringify(data));
+          win.androidBridge?.postMessage(JSON.stringify(data));
         } catch (e) {
           win?.console?.error(e);
         }
@@ -947,7 +1129,7 @@ const initBridge = (w: any): void => {
       postToNative = (data) => {
         try {
           data.type = data.type ? data.type : 'message';
-          win.webkit.messageHandlers.bridge.postMessage(data);
+          win.webkit?.messageHandlers?.bridge?.postMessage(data);
         } catch (e) {
           win?.console?.error(e);
         }
@@ -975,14 +1157,14 @@ const initBridge = (w: any): void => {
           cap.handleError(err);
         }
 
-        postToNative(errObj);
+        postToNative?.(errObj);
       }
 
       return false;
     };
 
     if (cap.DEBUG) {
-      window.onerror = cap.handleWindowError;
+      window.onerror = cap.handleWindowError as OnErrorEventHandler;
     }
 
     initLogger(win, cap);
@@ -992,6 +1174,42 @@ const initBridge = (w: any): void => {
      */
     cap.toNative = (pluginName, methodName, options, storedCallback) => {
       try {
+        // 检查是否应该使用同步调用
+        const bridgeAvailable = isSyncBridgeAvailable();
+        const shouldSync = shouldUseSync(pluginName, methodName);
+        const hasResolve = !!storedCallback?.resolve;
+        const useSync = bridgeAvailable && shouldSync && hasResolve;
+        
+        // 调试日志（仅在首次调用时输出）
+        if (pluginName !== 'Console' && (pluginName === 'Preferences' || pluginName === 'StatusBar')) {
+          win?.console?.log?.(`⚡ [SyncBridge Debug] ${pluginName}.${methodName}:`, 
+            `bridge=${bridgeAvailable}, shouldSync=${shouldSync}, hasResolve=${hasResolve}, useSync=${useSync}`);
+        }
+        
+        if (useSync) {
+          try {
+            const startTime = performance.now();
+            const result = callSync(pluginName, methodName, options);
+            const duration = (performance.now() - startTime).toFixed(2);
+            
+            // 立即 resolve
+            if (storedCallback?.resolve) {
+              storedCallback.resolve(result);
+            } else if (storedCallback?.callback) {
+              storedCallback.callback(result);
+            }
+            
+            // 始终输出同步调用日志（方便调试）
+            win?.console?.debug(`⚡ [Sync] ${pluginName}.${methodName} - ${duration}ms`);
+            
+            return '-1'; // 同步调用不需要真正的 callbackId
+          } catch (e) {
+            // 同步调用失败，回退到异步
+            win?.console?.debug(`[Capacitor] Sync call failed, fallback to async: ${pluginName}.${methodName}`);
+          }
+        }
+        
+        // 使用原有的异步方式
         if (typeof postToNative === 'function') {
           let callbackId = '-1';
 
@@ -1001,6 +1219,10 @@ const initBridge = (w: any): void => {
           ) {
             // store the call for later lookup
             callbackId = String(++callbackIdCount);
+            // 记录开始时间用于计算异步调用耗时
+            (storedCallback as any)._startTime = performance.now();
+            (storedCallback as any)._pluginName = pluginName;
+            (storedCallback as any)._methodName = methodName;
             callbacks.set(callbackId, storedCallback);
           }
 
@@ -1026,7 +1248,7 @@ const initBridge = (w: any): void => {
         win?.console?.error(e);
       }
 
-      return null;
+      return '';
     };
 
     if (win?.androidBridge) {
@@ -1053,6 +1275,15 @@ const initBridge = (w: any): void => {
 
         if (storedCall) {
           // looks like we've got a stored call
+          
+          // 输出异步调用耗时日志
+          const startTime = (storedCall as any)._startTime;
+          const pluginName = (storedCall as any)._pluginName;
+          const methodName = (storedCall as any)._methodName;
+          if (startTime && pluginName && pluginName !== 'Console') {
+            const duration = (performance.now() - startTime).toFixed(2);
+            win?.console?.log?.(`📨 [Async] ${pluginName}.${methodName} - ${duration}ms`);
+          }
 
           if (result.error) {
             // ensure stacktraces by copying error properties to an Error
@@ -1105,15 +1336,15 @@ const initBridge = (w: any): void => {
         console.warn(`Using a callback as the 'options' parameter of 'nativeCallback()' is deprecated.`);
 
         callback = options as any;
-        options = null;
+        options = undefined;
       }
 
-      return cap.toNative(pluginName, methodName, options, { callback });
+      return cap.toNative?.(pluginName, methodName, options, { callback }) ?? '';
     };
 
     cap.nativePromise = (pluginName, methodName, options) => {
       return new Promise((resolve, reject) => {
-        cap.toNative(pluginName, methodName, options, {
+        cap.toNative?.(pluginName, methodName, options, {
           resolve: resolve,
           reject: reject,
         });
