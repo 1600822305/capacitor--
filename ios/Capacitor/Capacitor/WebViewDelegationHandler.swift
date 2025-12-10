@@ -295,6 +295,10 @@ open class WebViewDelegationHandler: NSObject, WKNavigationDelegate, WKUIDelegat
                         completionHandler(String(pluginConfig.getBoolean("enabled", false)))
                         // Don't present prompt
                         return
+                    } else if type == "CapacitorSyncCall" {
+                        // 同步插件调用
+                        handleSyncCall(payload: payload, completionHandler: completionHandler)
+                        return
                     }
                 }
             }
@@ -342,6 +346,92 @@ open class WebViewDelegationHandler: NSObject, WKNavigationDelegate, WKUIDelegat
     }
 
     // MARK: - Private
+    
+    // MARK: - 同步调用支持
+    
+    /**
+     * 处理同步插件调用
+     */
+    private func handleSyncCall(payload: [String: AnyObject], completionHandler: @escaping (String?) -> Void) {
+        guard let pluginId = payload["pluginId"] as? String,
+              let methodName = payload["methodName"] as? String else {
+            let error: [String: Any] = ["success": false, "error": ["message": "Invalid payload"]]
+            completionHandler(toJson(error))
+            return
+        }
+        
+        let options = payload["options"] as? [String: Any] ?? [:]
+        
+        // 获取插件
+        guard let plugin = bridge?.plugin(withName: pluginId) else {
+            let error: [String: Any] = ["success": false, "error": ["message": "Plugin not found: \(pluginId)"]]
+            completionHandler(toJson(error))
+            return
+        }
+        
+        // 获取方法
+        guard let method = plugin.getMethod(named: methodName) else {
+            let error: [String: Any] = ["success": false, "error": ["message": "Method not found: \(methodName)"]]
+            completionHandler(toJson(error))
+            return
+        }
+        
+        // 使用信号量实现同步等待
+        let semaphore = DispatchSemaphore(value: 0)
+        var resultJson: String?
+        
+        let jsOptions = JSTypes.coerceDictionaryToJSObject(options) ?? [:]
+        
+        // 创建 PluginCall
+        let call = CAPPluginCall(
+            callbackId: "-1",
+            methodName: methodName,
+            options: jsOptions,
+            success: { result, _ in
+                let response: [String: Any] = [
+                    "success": true,
+                    "data": result?.data ?? [:]
+                ]
+                resultJson = self.toJson(response)
+                semaphore.signal()
+            },
+            error: { error in
+                let response: [String: Any] = [
+                    "success": false,
+                    "error": ["message": error?.message ?? "Unknown error"]
+                ]
+                resultJson = self.toJson(response)
+                semaphore.signal()
+            }
+        )
+        
+        // 在插件调度队列执行
+        if let capacitorBridge = bridge as? CapacitorBridge {
+            capacitorBridge.getDispatchQueue().async {
+                plugin.perform(method.selector, with: call)
+            }
+        } else {
+            // 回退：直接执行
+            plugin.perform(method.selector, with: call)
+        }
+        
+        // 等待结果（最多 30 秒）
+        let timeout = DispatchTime.now() + 30
+        _ = semaphore.wait(timeout: timeout)
+        
+        completionHandler(resultJson ?? "{\"success\":false,\"error\":{\"message\":\"Timeout\"}}")
+    }
+    
+    /**
+     * 将字典转换为 JSON 字符串
+     */
+    private func toJson(_ dict: [String: Any]) -> String? {
+        guard let data = try? JSONSerialization.data(withJSONObject: dict),
+              let string = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+        return string
+    }
 
     private func logJSError(_ error: [String: Any]) {
         let message = error["message"] ?? "No message"
